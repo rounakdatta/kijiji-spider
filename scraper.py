@@ -17,6 +17,9 @@ import requests
 import json
 from urllib import parse
 
+import uuid
+import timeout_decorator
+
 # function for getting the ebay token
 def get_token(adUrl, cookieText):
 
@@ -39,7 +42,7 @@ def get_token(adUrl, cookieText):
     return response.headers['X-Ebay-Box-Token']
 
 # function for sending the message using requests
-def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken):
+def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID):
 
     headers = {
         'sec-fetch-mode': 'cors',
@@ -57,8 +60,8 @@ def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken):
     }
 
     data = {
-    'fromName': 'Megan Fox',
-    'message': 'Hey there! How are you!.',
+    'fromName': 'Harry',
+    'message': 'Hey there! How are you! ' + uniqueID,
     # 'externalAdSource': 'null',
     'sendCopyToSender': 'false',
     'recaptchaResponse': captchaResponse,
@@ -77,6 +80,7 @@ def process_browser_log_entry(entry):
     return response
 
 # function for getting the SITE_KEY from the network logs
+@timeout_decorator.timeout(60)
 def get_recaptcha_site_key(driver):
 	browser_log = driver.get_log('performance') 
 	events = [process_browser_log_entry(entry) for entry in browser_log]
@@ -102,6 +106,7 @@ def get_recaptcha_site_key(driver):
 	return siteKey
 
 # function for getting the site's cookies in the required syntax
+@timeout_decorator.timeout(60)
 def get_cookie_string(driver):
 	cookieString = ""
 
@@ -112,7 +117,8 @@ def get_cookie_string(driver):
 	print(cookieString)
 	return cookieString
 
-# function for using anticaptcha solver to solve the captcha
+# function for using anticaptcha solver to solve the captcha - timeout in 200s
+@timeout_decorator.timeout(200)
 def get_captcha_response(antiCaptchaKey, PageUrl, SiteKey):
 	user_answer = NoCaptchaTaskProxyless.NoCaptchaTaskProxyless(anticaptcha_key = antiCaptchaKey)\
 					.captcha_handler(websiteURL=PageUrl,
@@ -279,13 +285,19 @@ for searchQuery in sys.argv[2:]:
 			continue
 
 		time.sleep(10)
+		uniqueID = str(uuid.uuid1()).split('-')[0]
 
-		SITE_KEY = get_recaptcha_site_key(driver)
-		COOKIE_STRING = get_cookie_string(driver)
-		EBAY_TOKEN = get_token(payloadUrl, COOKIE_STRING)
+		try:
+			SITE_KEY = get_recaptcha_site_key(driver)
+			COOKIE_STRING = get_cookie_string(driver)
+			EBAY_TOKEN = get_token(payloadUrl, COOKIE_STRING)
 
-		GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
-		send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN)
+			GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
+			send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID)
+		except Exception as e:
+			print(e)
+			print("Message sending failed / timeout!")
+
 		time.sleep(5)
 
 		allText = ""
@@ -337,13 +349,14 @@ for searchQuery in sys.argv[2:]:
 			allEmailsCaptured = [el for el in allEmailsCaptured if el is not None]
 			allEmailsCaptured.sort(key = lambda s: len(s))     
 			personEmail = allEmailsCaptured[-1]
+
 		except Exception as e:
 			personEmail = ""
 			pass
 
 		print(personEmail)
 
-		table.append([businessName, phoneNumber, personName, personEmail])
+		table.append([businessName, phoneNumber, personName, personEmail, uniqueID])
 
 		if (adUrlCount % 10 == 0):
 			writeToFile(table)
