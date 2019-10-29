@@ -71,8 +71,8 @@ def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID):
     }
 
     response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
-    print(response.content)
-    print(response)
+    print(response.json())
+    return response.json()
 
 # helper function for processing the browser logs
 def process_browser_log_entry(entry):
@@ -132,7 +132,7 @@ def get_captcha_response(antiCaptchaKey, PageUrl, SiteKey):
 # function for writing to file
 def writeToFile(table):
 	# csvfile = codecs.open('output.csv', 'w', 'utf_8_sig')
-	csvfile = open('output.csv', 'a')
+	csvfile = open('output' + UID + '.csv', 'a')
 	writer = csv.writer(csvfile)
 	writer.writerows(table)
 	csvfile.close()
@@ -162,6 +162,7 @@ def login(driver, email, password):
 ANTICAPTCHA_KEY = "***REMOVED***"
 KIJIJI_EMAIL = 'cabot@yopmail.com'
 KIJIJI_PASSWORD = 'cabot#123'
+UID = str(uuid.uuid1()).split('-')[0]
 
 parentUrl = "https://www.kijiji.ca"
 
@@ -196,6 +197,8 @@ for searchQuery in sys.argv[2:]:
 
 	if not FFLAG:
 		sys.exit()
+
+	time.sleep(5)
 
 	# put the query into the search box
 	driver.execute_script("document.getElementById('SearchKeyword').value = '{0}'".format(searchQuery))
@@ -259,7 +262,7 @@ for searchQuery in sys.argv[2:]:
 
 	print("Collected all ad URLs")
 
-	table = []
+	table = [["Business Name", "URL", "Phone Number", "Person Name", "Person Email", "Unique ID", "Msg Sending Status"]]
 	adUrlCount = len(adUrls)
 	print(adUrlCount)
 
@@ -287,13 +290,20 @@ for searchQuery in sys.argv[2:]:
 		time.sleep(10)
 		uniqueID = str(uuid.uuid1()).split('-')[0]
 
+		msgStatus = False
+
 		try:
 			SITE_KEY = get_recaptcha_site_key(driver)
 			COOKIE_STRING = get_cookie_string(driver)
 			EBAY_TOKEN = get_token(payloadUrl, COOKIE_STRING)
 
 			GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
-			send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID)
+			messageSendingResponse = send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID)
+			messageSendingStatus = messageSendingResponse["status"]
+
+			if messageSendingStatus == 'OK':
+				msgStatus = True
+
 		except Exception as e:
 			print(e)
 			print("Message sending failed / timeout!")
@@ -356,7 +366,7 @@ for searchQuery in sys.argv[2:]:
 
 		print(personEmail)
 
-		table.append([businessName, phoneNumber, personName, personEmail, uniqueID])
+		table.append([businessName, payloadUrl, phoneNumber, personName, personEmail, uniqueID, msgStatus])
 
 		if (adUrlCount % 10 == 0):
 			writeToFile(table)
