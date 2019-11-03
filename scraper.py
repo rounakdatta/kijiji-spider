@@ -20,6 +20,8 @@ from urllib import parse
 import uuid
 import timeout_decorator
 
+import threading
+
 # function for getting the ebay token
 def get_token(adUrl, cookieText):
 
@@ -88,6 +90,7 @@ def get_recaptcha_site_key(driver):
 
 	payloadURL = ''
 
+	# time.sleep to be replaced by waitTillPageLoaded
 	time.sleep(5)
 
 	for singleEvent in events:
@@ -198,7 +201,11 @@ for searchQuery in sys.argv[2:]:
 	if not FFLAG:
 		sys.exit()
 
-	time.sleep(5)
+	# time.sleep to be replaced by waitTillPageLoaded
+	WebDriverWait(driver, 600).until(
+		EC.presence_of_element_located((By.XPATH, '//*[@id="SearchKeyword"]'))
+	)
+	time.sleep(3)
 
 	# put the query into the search box
 	driver.execute_script("document.getElementById('SearchKeyword').value = '{0}'".format(searchQuery))
@@ -266,7 +273,8 @@ for searchQuery in sys.argv[2:]:
 	adUrlCount = len(adUrls)
 	print(adUrlCount)
 
-	for adIndex in range(len(adUrls)):
+	# for adIndex in range(len(adUrls)):
+	for adIndex in range(resultsWanted):
 
 		payloadUrl = adUrls[adIndex]
 		print(payloadUrl)
@@ -287,7 +295,11 @@ for searchQuery in sys.argv[2:]:
 		if not TFLAG:
 			continue
 
-		time.sleep(10)
+		# time.sleep to be replaced by waitTillPageLoaded
+		# time.sleep(10)
+		WebDriverWait(driver, 600).until(
+			EC.presence_of_element_located((By.XPATH, '//*[@id="vip-body"]'))
+		)
 		uniqueID = str(uuid.uuid1()).split('-')[0]
 
 		msgStatus = False
@@ -308,7 +320,8 @@ for searchQuery in sys.argv[2:]:
 			print(e)
 			print("Message sending failed / timeout!")
 
-		time.sleep(5)
+		# time.sleep to be replaced by waitTillPageLoaded
+		# time.sleep(5)
 
 		allText = ""
 		allParagraphs = driver.find_elements_by_tag_name("p")
@@ -321,13 +334,13 @@ for searchQuery in sys.argv[2:]:
 
 		allText += ("\n" + businessName)
 
-		try:
-			messageBox = driver.find_element_by_id('message')
-			messageBox.send_keys(Keys.CONTROL, 'a')
-			messageBox.send_keys('Hey there!')
-			# messageBox.submit()
-		except Exception as e:
-			print(e)
+		# try:
+		# 	messageBox = driver.find_element_by_id('message')
+		# 	messageBox.send_keys(Keys.CONTROL, 'a')
+		# 	messageBox.send_keys('Hey there!')
+		# 	# messageBox.submit()
+		# except Exception as e:
+		# 	print(e)
 
 		# pick the phone number from the ad
 		phoneNumberRegex = re.compile(r'((\()?\d\d\d(\)?)(-| )?(\d\d\d(-| )?\d\d\d\d))')
