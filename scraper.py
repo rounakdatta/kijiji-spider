@@ -25,61 +25,63 @@ import threading
 # function for getting the ebay token
 def get_token(adUrl, cookieText):
 
-    headers = {
-        'sec-fetch-mode': 'cors',
-        'accept-encoding': 'gzip, deflate, br',
-        'accept-language': 'en-US,en;q=0.9',
-        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
-        'accept': '*/*',
-        'referer': 'https://www.kijiji.ca/v-plumber/winnipeg/cost-effective-residential-sewer-line-drain-cleaning-service/1380571584',
-        'authority': 'www.kijiji.ca',
-        'cookie': cookieText,
-        'sec-fetch-site': 'same-origin',
-    }
+	headers = {
+		'sec-fetch-mode': 'cors',
+		'accept-encoding': 'gzip, deflate, br',
+		'accept-language': 'en-US,en;q=0.9',
+		'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
+		'accept': '*/*',
+		'referer': 'https://www.kijiji.ca/v-plumber/winnipeg/cost-effective-residential-sewer-line-drain-cleaning-service/1380571584',
+		'authority': 'www.kijiji.ca',
+		'cookie': cookieText,
+		'sec-fetch-site': 'same-origin',
+	}
 
-    response = requests.head('https://www.kijiji.ca/j-token-gen.json', headers=headers)
-    print(response)
-    print(response.headers)
+	response = requests.head('https://www.kijiji.ca/j-token-gen.json', headers=headers)
+	print(response)
+	print(response.headers)
 
-    return response.headers['X-Ebay-Box-Token']
+	return response.headers['X-Ebay-Box-Token']
 
 # function for sending the message using requests
-def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID):
+def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
 
-    headers = {
-        'sec-fetch-mode': 'cors',
-        'origin': 'https://www.kijiji.ca',
-        'accept-encoding': 'gzip, deflate, br',
-        'accept-language': 'en-US,en;q=0.9',
-        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
-        'content-type': 'application/x-www-form-urlencoded',
-        'cookie': cookieText,
-        'x-ebay-box-token': ebayToken,
-        'accept': '*/*',
-        'referer': adUrl,
-        'authority': 'www.kijiji.ca',
-        'sec-fetch-site': 'same-origin',
-    }
+	headers = {
+		'sec-fetch-mode': 'cors',
+		'origin': 'https://www.kijiji.ca',
+		'accept-encoding': 'gzip, deflate, br',
+		'accept-language': 'en-US,en;q=0.9',
+		'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
+		'content-type': 'application/x-www-form-urlencoded',
+		'cookie': cookieText,
+		'x-ebay-box-token': ebayToken,
+		'accept': '*/*',
+		'referer': adUrl,
+		'authority': 'www.kijiji.ca',
+		'sec-fetch-site': 'same-origin',
+	}
 
-    data = {
-    'fromName': 'Harry',
-    'message': 'Hey there! How are you! ' + uniqueID,
-    # 'externalAdSource': 'null',
-    'sendCopyToSender': 'false',
-    'recaptchaResponse': captchaResponse,
-    'adId': adId,
-    'emailRequiresVerification': 'false',
-    'from': 'cabot@yopmail.com'
-    }
+	data = {
+	'fromName': 'Harry',
+	'message': 'Hey there! How are you! ' + uniqueID,
+	'externalAdSource': channelId,
+	'sendCopyToSender': 'false',
+	'recaptchaResponse': captchaResponse,
+	'adId': adId,
+	'emailRequiresVerification': 'false',
+	'from': 'cabot@yopmail.com'
+	}
 
-    response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
-    print(response.json())
-    return response.json()
+	# response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
+	response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
+	print(response.content)
+	print(response.json())
+	return response.json()
 
 # helper function for processing the browser logs
 def process_browser_log_entry(entry):
-    response = json.loads(entry['message'])['message']
-    return response
+	response = json.loads(entry['message'])['message']
+	return response
 
 # function for getting the SITE_KEY from the network logs
 @timeout_decorator.timeout(60)
@@ -102,7 +104,6 @@ def get_recaptcha_site_key(driver):
 		except:
 			pass
 
-	# print(payloadURL)
 	siteKey = parse.parse_qs(parse.urlsplit(payloadURL).query)['k'][0]
 	print(siteKey)
 
@@ -140,18 +141,78 @@ def writeToFile(table):
 	writer.writerows(table)
 	csvfile.close()
 
-# function for logging in to Kijiji
-def login(driver, email, password):
+# function for visiting a page using chromedriver
+def visitPage(driver, pageURL):
 	LFLAG = False
-	for retry in range(5):
+	for _retry in range(5):
 		try:
-			driver.get(parentUrl + '/t-login.html')
+			driver.get(pageURL)
 			LFLAG = True
 			break
 		except:
 			continue
 	if not LFLAG:
 		sys.exit()
+
+	return driver
+
+# function for extracting all the text as blob out of the ad page
+def extractText(driver):
+	allText = ""
+	allParagraphs = driver.find_elements_by_tag_name("p")
+	for p in allParagraphs:
+		allText += p.text
+
+	return allText
+
+# function for picking up the business name from the ad page
+def getBusinessName(driver):
+	businessName = driver.find_element_by_xpath('//*[@id="ViewItemPage"]/div[5]/div[1]/div[1]/div/h1').text
+	return businessName
+
+# function for picking up the phone number from the ad page
+def getPhoneNumber(allText):
+	phoneNumberRegex = re.compile(r'((\()?\d\d\d(\)?)(-| )?(\d\d\d(-| )?\d\d\d\d))')
+	regexGrouper = phoneNumberRegex.search(allText)
+
+	try:
+		allNumbersCaptured = list(regexGrouper.groups())
+		allNumbersCaptured = [el for el in allNumbersCaptured if el is not None]
+		allNumbersCaptured.sort(key = lambda s: len(s))
+		phoneNumber = allNumbersCaptured[-1]
+	except:
+		phoneNumber = ""
+		pass
+
+	return phoneNumber
+
+# function for picking up the person name from the ad page
+def getPersonName(driver):
+	try:
+		personName = driver.find_element_by_xpath('//*[@id="vip-body"]/div[6]/div[3]/div/div[1]/div/a').text
+	except:
+		personName = ""
+		pass
+
+	return personName
+
+# function for picking up the person email from the ad page
+def getPersonEmail(allText):
+	allEmailsCaptured = re.findall(r'\S+@\S+', allText)
+
+	try:
+		allEmailsCaptured = [el for el in allEmailsCaptured if el is not None]
+		allEmailsCaptured.sort(key = lambda s: len(s))     
+		personEmail = allEmailsCaptured[-1]
+	except:
+		personEmail = ""
+		pass
+
+	return personEmail
+
+# function for logging in to Kijiji
+def login(driver, email, password):
+	driver = visitPage(driver, parentUrl + '/t-login.html')
 
 	emailBox = driver.find_element_by_id('LoginEmailOrNickname')
 	passwordBox = driver.find_element_by_id('login-password')
@@ -160,6 +221,30 @@ def login(driver, email, password):
 	emailBox.send_keys(email)
 	passwordBox.send_keys(password)
 	loginButton.click()
+
+	return driver
+
+# driver function for sending message to the customer
+def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId):
+	try:
+		SITE_KEY = get_recaptcha_site_key(driver)
+		COOKIE_STRING = get_cookie_string(driver)
+		EBAY_TOKEN = get_token(payloadUrl, COOKIE_STRING)
+		GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
+		messageSendingResponse = send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+		messageSendingStatus = messageSendingResponse["status"]
+
+		if messageSendingStatus == 'OK':
+			msgStatus = True
+
+	except Exception as e:
+		_exc_type, _exc_obj, exc_tb = sys.exc_info()
+		print("Error occured on ", end="")
+		print(exc_tb.tb_lineno)
+		print(e)
+		print("Message sending failed / timeout!")
+
+	return msgStatus, driver
 
 # program starts
 ANTICAPTCHA_KEY = "***REMOVED***"
@@ -180,7 +265,7 @@ options.add_argument("--allow-running-insecure-content")
 
 driver = webdriver.Chrome(desired_capabilities=caps, chrome_options=options)
 
-login(driver, KIJIJI_EMAIL, KIJIJI_PASSWORD)
+driver = login(driver, KIJIJI_EMAIL, KIJIJI_PASSWORD)
 time.sleep(5)
 
 resultsWanted = int(sys.argv[1])
@@ -189,17 +274,7 @@ print("Getting approximately {0} results for each query".format(resultsWanted))
 for searchQuery in sys.argv[2:]:
 	print("Starting search for {0}".format(searchQuery))
 
-	FFLAG = False
-	for retry in range(5):
-		try:
-			driver.get(parentUrl)
-			FFLAG = True
-			break
-		except:
-			continue
-
-	if not FFLAG:
-		sys.exit()
+	driver = visitPage(driver, parentUrl)
 
 	# time.sleep to be replaced by waitTillPageLoaded
 	WebDriverWait(driver, 600).until(
@@ -219,6 +294,7 @@ for searchQuery in sys.argv[2:]:
 	pageIndex = 1
 	adUrls = []
 
+	# collect >= the specified number of ad URLs
 	while(True):
 		currentPage = driver.current_url
 		currentPageList = currentPage.split("/")
@@ -248,18 +324,7 @@ for searchQuery in sys.argv[2:]:
 		newPageList = currentPageList[:-1] + ["page-" + str(pageIndex)] + currentPageList[-1:]
 		newPage = '/'.join(newPageList)
 
-		SFLAG = False
-		for retry in range(5):
-			try:
-				driver.get(newPage)
-				SFLAG = True
-				break
-			except:
-				continue
-
-		if not SFLAG:
-			pageIndex += 1
-			continue
+		driver = visitPage(driver, newPage)
 
 		urlCollectedCount = len(adUrls)
 		print("Collected {0} URLs".format(urlCollectedCount))
@@ -267,7 +332,7 @@ for searchQuery in sys.argv[2:]:
 		if urlCollectedCount >= resultsWanted:
 			break
 
-	print("Collected all ad URLs")
+	print("Collected >= specified ad URLs")
 
 	table = [["Business Name", "URL", "Phone Number", "Person Name", "Person Email", "Unique ID", "Msg Sending Status"]]
 	adUrlCount = len(adUrls)
@@ -276,108 +341,53 @@ for searchQuery in sys.argv[2:]:
 	# for adIndex in range(len(adUrls)):
 	for adIndex in range(resultsWanted):
 
+		print("------------------------")
+
 		payloadUrl = adUrls[adIndex]
 		print(payloadUrl)
 		AD_ID = payloadUrl.split('/')[-1]
 
-		TFLAG = False
-		for retry in range(5):
-			try:
-				# driver.execute_script('window.open()')
-				# driver.switch_to_window(driver.window_handles[adIndex + 1])
-				driver.get(payloadUrl)
-				TFLAG = True
-				break
-			except Exception as e:
-				print(e)
-				continue
-
-		if not TFLAG:
-			continue
-
-		# time.sleep to be replaced by waitTillPageLoaded
-		# time.sleep(10)
-		WebDriverWait(driver, 600).until(
-			EC.presence_of_element_located((By.XPATH, '//*[@id="vip-body"]'))
-		)
+		msgStatus = False
 		uniqueID = str(uuid.uuid1()).split('-')[0]
 
-		msgStatus = False
+		# retry the message sending process max 5 times
+		for _pageLoadRetries in range(5):
+			driver = visitPage(driver, payloadUrl)
+			# wait till all the network requests have completed i.e. the page has completely been loaded
+			WebDriverWait(driver, 600).until(
+				EC.presence_of_element_located((By.XPATH, '//*[@id="vip-body"]'))
+			)
 
-		try:
-			SITE_KEY = get_recaptcha_site_key(driver)
-			COOKIE_STRING = get_cookie_string(driver)
-			EBAY_TOKEN = get_token(payloadUrl, COOKIE_STRING)
+			# recaptcha is loaded when the message box is clicked
+			time.sleep(2)
+			try:
+				driver.find_element_by_id('message').click()
+				htmlSourceCode = driver.page_source
 
-			GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
-			messageSendingResponse = send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID)
-			messageSendingStatus = messageSendingResponse["status"]
+				externalSourceId = re.findall(r'"externalSourceId":(.+?),', htmlSourceCode)[0]
+				channelId = re.findall(r'"emailChannelId":(.+?),', htmlSourceCode)[0]
+			except:
+				pass
+			time.sleep(3)
 
-			if messageSendingStatus == 'OK':
-				msgStatus = True
+			msgStatus, driver = sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId)
+			if msgStatus == True:
+				break
 
-		except Exception as e:
-			print(e)
-			print("Message sending failed / timeout!")
-
-		# time.sleep to be replaced by waitTillPageLoaded
-		# time.sleep(5)
-
-		allText = ""
-		allParagraphs = driver.find_elements_by_tag_name("p")
-		for p in allParagraphs:
-			allText += p.text
+		allText = extractText(driver)
 
 		# pick the business name from the ad
-		businessName = driver.find_element_by_xpath('//*[@id="ViewItemPage"]/div[5]/div[1]/div[1]/div/h1').text
-		print(businessName)
-
+		businessName = getBusinessName(driver)
 		allText += ("\n" + businessName)
 
-		# try:
-		# 	messageBox = driver.find_element_by_id('message')
-		# 	messageBox.send_keys(Keys.CONTROL, 'a')
-		# 	messageBox.send_keys('Hey there!')
-		# 	# messageBox.submit()
-		# except Exception as e:
-		# 	print(e)
-
 		# pick the phone number from the ad
-		phoneNumberRegex = re.compile(r'((\()?\d\d\d(\)?)(-| )?(\d\d\d(-| )?\d\d\d\d))')
-		regexGrouper = phoneNumberRegex.search(allText)
-
-		try:
-			allNumbersCaptured = list(regexGrouper.groups())
-			allNumbersCaptured = [el for el in allNumbersCaptured if el is not None]
-			allNumbersCaptured.sort(key = lambda s: len(s))
-			phoneNumber = allNumbersCaptured[-1]
-		except:
-			phoneNumber = ""
-			pass
-
-		print(phoneNumber)
+		phoneNumber = getPhoneNumber(allText)
 
 		# pick the person name from the ad
-		try:
-			personName = driver.find_element_by_xpath('//*[@id="vip-body"]/div[6]/div[3]/div/div[1]/div/a').text
-		except Exception as e:
-			personName = ""
-			pass
-
-		print(personName)
+		personName = getPersonName(driver)
 
 		# pick up the email from the ad
-		allEmailsCaptured = re.findall(r'\S+@\S+', allText)
-		try:
-			allEmailsCaptured = [el for el in allEmailsCaptured if el is not None]
-			allEmailsCaptured.sort(key = lambda s: len(s))     
-			personEmail = allEmailsCaptured[-1]
-
-		except Exception as e:
-			personEmail = ""
-			pass
-
-		print(personEmail)
+		personEmail = getPersonEmail(allText)
 
 		table.append([businessName, payloadUrl, phoneNumber, personName, personEmail, uniqueID, msgStatus])
 
@@ -386,5 +396,3 @@ for searchQuery in sys.argv[2:]:
 			table = []
 
 		adUrlCount -= 1
-
-		# driver.switch_to_window(driver.window_handles[0])
