@@ -98,7 +98,6 @@ def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	data = {
 	'fromName': 'Harry',
 	'message': 'Hey there! How are you! ' + uniqueID,
-	'externalAdSource': channelId,
 	'sendCopyToSender': 'false',
 	'recaptchaResponse': captchaResponse,
 	'adId': adId,
@@ -267,8 +266,10 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 		GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
 
 		try:
+			print("Trying first POST method")
 			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
-		except:
+		except Exception as e:
+			print("Trying second POST method")
 			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
 		
 		messageSendingStatus = messageSendingResponse["status"]
@@ -414,10 +415,10 @@ for searchQuery in sys.argv[2:]:
 				htmlSourceCode = driver.page_source
 
 				externalSourceId = re.findall(r'"externalSourceId":(.+?),', htmlSourceCode)[0]
-				channelId = re.findall(r'"emailChannelId":(.+?),', htmlSourceCode)[0]
+				channelId = re.findall(r'"emailChannelId":(.+?)(,|})', htmlSourceCode)[0][0]
 				print("external source id is " + externalSourceId)
 				print("channel id is " + channelId)
-			except:
+			except Exception as e:
 				pass
 			time.sleep(3)
 
