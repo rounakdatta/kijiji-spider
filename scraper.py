@@ -38,13 +38,13 @@ def get_token(adUrl, cookieText):
 	}
 
 	response = requests.head('https://www.kijiji.ca/j-token-gen.json', headers=headers)
-	print(response)
-	print(response.headers)
+	# print(response)
+	# print(response.headers)
 
 	return response.headers['X-Ebay-Box-Token']
 
-# function for sending the message using requests
-def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
+# function 1 for sending the message using requests
+def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -72,9 +72,43 @@ def send_message(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, 
 	'from': 'cabot@yopmail.com'
 	}
 
-	# response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
 	response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
-	print(response.content)
+	# print(response.content)
+	print(response.json())
+	return response.json()
+
+# function 2 for sending message using requests
+def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
+
+	headers = {
+		'sec-fetch-mode': 'cors',
+		'origin': 'https://www.kijiji.ca',
+		'accept-encoding': 'gzip, deflate, br',
+		'accept-language': 'en-US,en;q=0.9',
+		'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
+		'content-type': 'application/x-www-form-urlencoded',
+		'cookie': cookieText,
+		'x-ebay-box-token': ebayToken,
+		'accept': '*/*',
+		'referer': adUrl,
+		'authority': 'www.kijiji.ca',
+		'sec-fetch-site': 'same-origin',
+	}
+
+	data = {
+	'fromName': 'Harry',
+	'message': 'Hey there! How are you! ' + uniqueID,
+	'externalAdSource': channelId,
+	'sendCopyToSender': 'false',
+	'recaptchaResponse': captchaResponse,
+	'adId': adId,
+	'emailRequiresVerification': 'false',
+	'from': 'cabot@yopmail.com'
+	}
+
+	response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
+	# response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
+	# print(response.content)
 	print(response.json())
 	return response.json()
 
@@ -118,7 +152,7 @@ def get_cookie_string(driver):
 	for singleCookie in allCookies:
 		cookieString += (singleCookie['name'] + "=" + singleCookie['value'] + "; ")
 
-	print(cookieString)
+	# print(cookieString)
 	return cookieString
 
 # function for using anticaptcha solver to solve the captcha - timeout in 200s
@@ -231,8 +265,17 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 		COOKIE_STRING = get_cookie_string(driver)
 		EBAY_TOKEN = get_token(payloadUrl, COOKIE_STRING)
 		GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
-		messageSendingResponse = send_message(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+
+		try:
+			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+		except:
+			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+		
 		messageSendingStatus = messageSendingResponse["status"]
+
+		if messageSendingStatus == 'ERROR':
+			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+			messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'OK':
 			msgStatus = True
@@ -242,7 +285,6 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 		print("Error occured on ", end="")
 		print(exc_tb.tb_lineno)
 		print(e)
-		print("Message sending failed / timeout!")
 
 	return msgStatus, driver
 
@@ -344,28 +386,37 @@ for searchQuery in sys.argv[2:]:
 		print("------------------------")
 
 		payloadUrl = adUrls[adIndex]
-		print(payloadUrl)
+		# print(payloadUrl)
 		AD_ID = payloadUrl.split('/')[-1]
 
 		msgStatus = False
 		uniqueID = str(uuid.uuid1()).split('-')[0]
 
 		# retry the message sending process max 5 times
-		for _pageLoadRetries in range(5):
+		for _pageLoadRetries in range(3):
 			driver = visitPage(driver, payloadUrl)
 			# wait till all the network requests have completed i.e. the page has completely been loaded
-			WebDriverWait(driver, 600).until(
-				EC.presence_of_element_located((By.XPATH, '//*[@id="vip-body"]'))
-			)
+			try:
+				WebDriverWait(driver, 600).until(
+					EC.presence_of_element_located((By.XPATH, '//*[@id="vip-body"]'))
+				)
+			except:
+				continue
 
 			# recaptcha is loaded when the message box is clicked
 			time.sleep(2)
+
+			externalSourceId = 'null'
+			channelId = ''
+
 			try:
 				driver.find_element_by_id('message').click()
 				htmlSourceCode = driver.page_source
 
 				externalSourceId = re.findall(r'"externalSourceId":(.+?),', htmlSourceCode)[0]
 				channelId = re.findall(r'"emailChannelId":(.+?),', htmlSourceCode)[0]
+				print("external source id is " + externalSourceId)
+				print("channel id is " + channelId)
 			except:
 				pass
 			time.sleep(3)
@@ -373,6 +424,9 @@ for searchQuery in sys.argv[2:]:
 			msgStatus, driver = sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId)
 			if msgStatus == True:
 				break
+
+		if msgStatus == False:
+			print("Message sending failed / timeout!")
 
 		allText = extractText(driver)
 
@@ -392,6 +446,10 @@ for searchQuery in sys.argv[2:]:
 		table.append([businessName, payloadUrl, phoneNumber, personName, personEmail, uniqueID, msgStatus])
 
 		if (adUrlCount % 10 == 0):
+			writeToFile(table)
+			table = []
+
+		if adIndex == (resultsWanted - 1):
 			writeToFile(table)
 			table = []
 
