@@ -101,6 +101,42 @@ def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	'sendCopyToSender': 'false',
 	'recaptchaResponse': captchaResponse,
 	'adId': adId,
+	# 'initialMessageIds': '1,2,3',
+	'emailRequiresVerification': 'false',
+	'from': 'cabot@yopmail.com'
+	}
+
+	response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
+	# response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
+	# print(response.content)
+	print(response.json())
+	return response.json()
+
+# function 2 for sending message using requests
+def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
+
+	headers = {
+		'sec-fetch-mode': 'cors',
+		'origin': 'https://www.kijiji.ca',
+		'accept-encoding': 'gzip, deflate, br',
+		'accept-language': 'en-US,en;q=0.9',
+		'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
+		'content-type': 'application/x-www-form-urlencoded',
+		'cookie': cookieText,
+		'x-ebay-box-token': ebayToken,
+		'accept': '*/*',
+		'referer': adUrl,
+		'authority': 'www.kijiji.ca',
+		'sec-fetch-site': 'same-origin',
+	}
+
+	data = {
+	'fromName': 'Harry',
+	'message': 'Hey there! How are you! ' + uniqueID,
+	'sendCopyToSender': 'false',
+	'recaptchaResponse': captchaResponse,
+	'adId': adId,
+	'initialMessageIds': '1,2,3',
 	'emailRequiresVerification': 'false',
 	'from': 'cabot@yopmail.com'
 	}
@@ -138,7 +174,7 @@ def get_recaptcha_site_key(driver):
 			pass
 
 	siteKey = parse.parse_qs(parse.urlsplit(payloadURL).query)['k'][0]
-	print(siteKey)
+	# print(siteKey)
 
 	return siteKey
 
@@ -163,7 +199,7 @@ def get_captcha_response(antiCaptchaKey, PageUrl, SiteKey):
 
 	# print(user_answer)
 	gcaptchaResponse = user_answer['solution']['gRecaptchaResponse']
-	print(gcaptchaResponse)
+	# print(gcaptchaResponse)
 	return gcaptchaResponse
 
 # function for writing to file
@@ -270,8 +306,11 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
 		except Exception as e:
 			print("Trying second POST method")
-			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
-		
+			try:
+				messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+			except:
+				messageSendingResponse = send_message_3(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+
 		messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'ERROR':
@@ -387,7 +426,8 @@ for searchQuery in sys.argv[2:]:
 		print("------------------------")
 
 		payloadUrl = adUrls[adIndex]
-		# print(payloadUrl)
+		payloadUrl = payloadUrl.split("?")[0]
+		print(payloadUrl)
 		AD_ID = payloadUrl.split('/')[-1]
 
 		msgStatus = False
