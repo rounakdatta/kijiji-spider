@@ -10,6 +10,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from python3_anticaptcha import NoCaptchaTaskProxyless
 
 import re
+import os
 import codecs
 import csv
 import time
@@ -21,6 +22,8 @@ import uuid
 import timeout_decorator
 
 import threading
+from dotenv import 	load_dotenv
+load_dotenv()
 
 # function for getting the ebay token
 def get_token(adUrl, cookieText):
@@ -44,7 +47,7 @@ def get_token(adUrl, cookieText):
 	return response.headers['X-Ebay-Box-Token']
 
 # function 1 for sending the message using requests
-def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
+def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId, fromEmail):
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -69,7 +72,7 @@ def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	'recaptchaResponse': captchaResponse,
 	'adId': adId,
 	'emailRequiresVerification': 'false',
-	'from': 'cabot@yopmail.com'
+	'from': fromEmail
 	}
 
 	response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
@@ -78,7 +81,7 @@ def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	return response.json()
 
 # function 2 for sending message using requests
-def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
+def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId, fromEmail):
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -103,7 +106,7 @@ def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	'adId': adId,
 	# 'initialMessageIds': '1,2,3',
 	'emailRequiresVerification': 'false',
-	'from': 'cabot@yopmail.com'
+	'from': fromEmail
 	}
 
 	response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
@@ -113,7 +116,7 @@ def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	return response.json()
 
 # function 2 for sending message using requests
-def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId):
+def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId, fromEmail):
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -138,7 +141,7 @@ def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	'adId': adId,
 	'initialMessageIds': '1,2,3',
 	'emailRequiresVerification': 'false',
-	'from': 'cabot@yopmail.com'
+	'from': fromEmail
 	}
 
 	response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
@@ -294,7 +297,7 @@ def login(driver, email, password):
 	return driver
 
 # driver function for sending message to the customer
-def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId):
+def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId, fromEmail):
 	try:
 		SITE_KEY = get_recaptcha_site_key(driver)
 		COOKIE_STRING = get_cookie_string(driver)
@@ -303,18 +306,18 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 
 		try:
 			print("Trying first POST method")
-			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 		except Exception as e:
 			print("Trying second POST method")
 			try:
-				messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+				messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 			except:
-				messageSendingResponse = send_message_3(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+				messageSendingResponse = send_message_3(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 
 		messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'ERROR':
-			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId)
+			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 			messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'OK':
@@ -329,9 +332,9 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 	return msgStatus, driver
 
 # program starts
-ANTICAPTCHA_KEY = "***REMOVED***"
-KIJIJI_EMAIL = 'cabot@yopmail.com'
-KIJIJI_PASSWORD = 'cabot#123'
+ANTICAPTCHA_KEY = os.getenv('ANTICAPTCHA_KEY')
+KIJIJI_EMAIL = os.getenv('KIJIJI_EMAIL')
+KIJIJI_PASSWORD = os.getenv('KIJIJI_PASSWORD')
 UID = str(uuid.uuid1()).split('-')[0]
 
 parentUrl = "https://www.kijiji.ca"
@@ -462,7 +465,7 @@ for searchQuery in sys.argv[2:]:
 				pass
 			time.sleep(3)
 
-			msgStatus, driver = sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId)
+			msgStatus, driver = sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, externalSourceId, channelId, KIJIJI_EMAIL)
 			if msgStatus == True:
 				break
 
