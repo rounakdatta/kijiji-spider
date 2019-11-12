@@ -22,10 +22,10 @@ import uuid
 import timeout_decorator
 
 import threading
-from dotenv import 	load_dotenv
+from dotenv import load_dotenv
 load_dotenv()
 
-# function for getting the ebay token
+# function for getting the ebay token specific to user
 def get_token(adUrl, cookieText):
 
 	headers = {
@@ -41,13 +41,11 @@ def get_token(adUrl, cookieText):
 	}
 
 	response = requests.head('https://www.kijiji.ca/j-token-gen.json', headers=headers)
-	# print(response)
-	# print(response.headers)
-
 	return response.headers['X-Ebay-Box-Token']
 
 # function 1 for sending the message using requests
 def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId, fromEmail):
+	print("Trying first POST method")
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -76,12 +74,12 @@ def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	}
 
 	response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
-	# print(response.content)
 	print(response.json())
 	return response.json()
 
 # function 2 for sending message using requests
 def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId, fromEmail):
+	print("Trying second POST method")
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -110,13 +108,12 @@ def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	}
 
 	response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
-	# response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
-	# print(response.content)
 	print(response.json())
 	return response.json()
 
-# function 2 for sending message using requests
+# function 3 for sending message using requests
 def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID, externalSourceId, channelId, fromEmail):
+	print("Trying third POST method")
 
 	headers = {
 		'sec-fetch-mode': 'cors',
@@ -145,8 +142,6 @@ def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 	}
 
 	response = requests.post('https://www.kijiji.ca/j-contact-seller.json', headers=headers, data=data)
-	# response = requests.post('https://www.kijiji.ca/j-contact-seller-cas.json?channelId=' + channelId, headers=headers, data=data)
-	# print(response.content)
 	print(response.json())
 	return response.json()
 
@@ -177,8 +172,6 @@ def get_recaptcha_site_key(driver):
 			pass
 
 	siteKey = parse.parse_qs(parse.urlsplit(payloadURL).query)['k'][0]
-	# print(siteKey)
-
 	return siteKey
 
 # function for getting the site's cookies in the required syntax
@@ -190,7 +183,6 @@ def get_cookie_string(driver):
 	for singleCookie in allCookies:
 		cookieString += (singleCookie['name'] + "=" + singleCookie['value'] + "; ")
 
-	# print(cookieString)
 	return cookieString
 
 # function for using anticaptcha solver to solve the captcha - timeout in 200s
@@ -200,14 +192,11 @@ def get_captcha_response(antiCaptchaKey, PageUrl, SiteKey):
 					.captcha_handler(websiteURL=PageUrl,
 									websiteKey=SiteKey)
 
-	# print(user_answer)
 	gcaptchaResponse = user_answer['solution']['gRecaptchaResponse']
-	# print(gcaptchaResponse)
 	return gcaptchaResponse
 
 # function for writing to file
 def writeToFile(table):
-	# csvfile = codecs.open('output.csv', 'w', 'utf_8_sig')
 	csvfile = open('output' + UID + '.csv', 'a')
 	writer = csv.writer(csvfile)
 	writer.writerows(table)
@@ -305,10 +294,8 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 		GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
 
 		try:
-			print("Trying first POST method")
 			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 		except Exception as e:
-			print("Trying second POST method")
 			try:
 				messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 			except:
@@ -318,6 +305,10 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 
 		if messageSendingStatus == 'ERROR':
 			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
+			messageSendingStatus = messageSendingResponse["status"]
+
+		if messageSendingStatus == 'ERROR':
+			messageSendingResponse = send_message_3(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 			messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'OK':
@@ -356,6 +347,15 @@ time.sleep(5)
 resultsWanted = int(sys.argv[1])
 print("Getting approximately {0} results for each query".format(resultsWanted))
 
+queryText = sys.argv[2]
+
+categorySearch = False
+try:
+	queryCategory = sys.argv[3]
+	categorySearch = True
+except:
+	queryCategory = ""
+
 for searchQuery in sys.argv[2:]:
 	print("Starting search for {0}".format(searchQuery))
 
@@ -369,6 +369,15 @@ for searchQuery in sys.argv[2:]:
 
 	# put the query into the search box
 	driver.execute_script("document.getElementById('SearchKeyword').value = '{0}'".format(searchQuery))
+
+	# put the category into the category box (optional)
+	if categorySearch:
+		cElements = driver.find_elements_by_css_selector('div.categoryLabel')
+		for result in cElements:
+			print(result)
+			print(result.text)
+		print(queryCategory)
+		driver.execute_script("document.getElementById('SearchCategory').value = '{0}'".format(queryCategory))
 
 	# wait for the details to be entered by the user and pressing the search button
 	element = WebDriverWait(driver, 600).until(
@@ -395,13 +404,13 @@ for searchQuery in sys.argv[2:]:
 		allResults = driver.find_elements_by_tag_name("table")
 		for result in allResults:
 			adUrl = result.get_attribute("data-vip-url")
-			if adUrl is not None:
+			if adUrl is not None and adUrl.startswith('/'):
 				adUrls.append(parentUrl + adUrl)
 
 		allResults1 = driver.find_elements_by_css_selector('div.search-item')
 		for result in allResults1:
 			adUrl = result.get_attribute("data-vip-url")
-			if adUrl is not None:
+			if adUrl is not None and adUrl.startswith('/'):
 				adUrls.append(parentUrl + adUrl)
 
 		# move to the next page
