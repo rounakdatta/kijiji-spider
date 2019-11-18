@@ -64,9 +64,9 @@ def send_message_1(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 
 	data = {
 	'fromName': 'Harry',
-	'message': 'Hey there! How are you! ' + uniqueID,
+	'message': 'Hey there! Are you available? Thanks, please do reach back! ' + uniqueID,
 	'externalAdSource': channelId,
-	'sendCopyToSender': 'false',
+	'sendCopyToSender': 'true',
 	'recaptchaResponse': captchaResponse,
 	'adId': adId,
 	'emailRequiresVerification': 'false',
@@ -98,8 +98,8 @@ def send_message_2(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 
 	data = {
 	'fromName': 'Harry',
-	'message': 'Hey there! How are you! ' + uniqueID,
-	'sendCopyToSender': 'false',
+	'message': 'Hey there! Are you available? Please do reach out, thank you! ' + uniqueID,
+	'sendCopyToSender': 'true',
 	'recaptchaResponse': captchaResponse,
 	'adId': adId,
 	# 'initialMessageIds': '1,2,3',
@@ -132,8 +132,8 @@ def send_message_3(adUrl, adId, captchaResponse, cookieText, ebayToken, uniqueID
 
 	data = {
 	'fromName': 'Harry',
-	'message': 'Hey there! How are you! ' + uniqueID,
-	'sendCopyToSender': 'false',
+	'message': 'Hey there! Are you available? Please do reach out, thanks! ' + uniqueID,
+	'sendCopyToSender': 'true',
 	'recaptchaResponse': captchaResponse,
 	'adId': adId,
 	'initialMessageIds': '1,2,3',
@@ -217,6 +217,16 @@ def visitPage(driver, pageURL):
 
 	return driver
 
+# function to check if the ad is of resume (application) type
+def isAdResumeType(driver):
+	try:
+		fileBoxArray = driver.find_elements_by_id('fileList')
+		if len(fileBoxArray) == 0:
+			return False
+		return True
+	except:
+		return False
+
 # function for extracting all the text as blob out of the ad page
 def extractText(driver):
 	allText = ""
@@ -294,17 +304,17 @@ def sendMessageDriver(driver, payloadUrl, ANTICAPTCHA_KEY, msgStatus, uniqueID, 
 		GCAPTCHA_RESPONSE = get_captcha_response(ANTICAPTCHA_KEY, payloadUrl, SITE_KEY)
 
 		try:
-			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
+			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 		except Exception as e:
 			try:
-				messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
+				messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 			except:
 				messageSendingResponse = send_message_3(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 
 		messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'ERROR':
-			messageSendingResponse = send_message_2(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
+			messageSendingResponse = send_message_1(payloadUrl, AD_ID, GCAPTCHA_RESPONSE, COOKIE_STRING, EBAY_TOKEN, uniqueID, externalSourceId, channelId, fromEmail)
 			messageSendingStatus = messageSendingResponse["status"]
 
 		if messageSendingStatus == 'ERROR':
@@ -458,6 +468,11 @@ for searchQuery in sys.argv[2:]:
 
 			# recaptcha is loaded when the message box is clicked
 			time.sleep(2)
+
+			# make sure the ad is not resume type
+			if isAdResumeType(driver):
+				print("Skipping message sending to resume-uploading type ad")
+				break
 
 			externalSourceId = 'null'
 			channelId = ''
