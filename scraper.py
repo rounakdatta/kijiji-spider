@@ -382,16 +382,18 @@ for searchQuery in sys.argv[2:]:
 
 	# put the category into the category box (optional)
 	if categorySearch:
-		cElements = driver.find_elements_by_css_selector('div.categoryLabel')
-		for result in cElements:
-			print(result)
-			print(result.text)
-		print(queryCategory)
-		driver.execute_script("document.getElementById('SearchCategory').value = '{0}'".format(queryCategory))
+
+		selectBox = driver.find_element_by_xpath("//select[@name='SearchCategory']")
+		allCategories = selectBox.find_elements_by_tag_name("option")
+
+		for category in allCategories:
+			# print(category.get_attribute("value"))
+			if category.text == queryCategory:
+				category.click()
 
 	# wait for the details to be entered by the user and pressing the search button
 	element = WebDriverWait(driver, 600).until(
-		EC.presence_of_element_located((By.XPATH, '//*[@id="mainPageContent"]/div[3]/div[3]/div/div[1]/div[2]'))
+		EC.presence_of_element_located((By.CLASS_NAME, 'showing'))
 	)
 	print("Moved to search results page")
 
@@ -472,6 +474,10 @@ for searchQuery in sys.argv[2:]:
 			# make sure the ad is not resume type
 			if isAdResumeType(driver):
 				print("Skipping message sending to resume-uploading type ad")
+				break
+
+			if len(driver.find_elements_by_id('gpt-error-404')) > 0:
+				print("Error 404 page")
 				break
 
 			externalSourceId = 'null'
