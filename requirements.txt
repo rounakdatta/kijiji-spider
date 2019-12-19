@@ -2,10 +2,10 @@
 # https://github.com/damnever/pigar
 
 # scraper.py: 25
-dotenv == 0.0.5
+python-dotenv == 0.0.5
 
 # scraper.py: 10
-python3_anticaptcha == 1.5.4
+python3-anticaptcha == 1.5.4
 
 # scraper.py: 17
 requests == 2.18.4
@@ -14,4 +14,4 @@ requests == 2.18.4
 selenium == 3.141.0
 
 # scraper.py: 22
-timeout_decorator == 0.4.1
+timeout-decorator == 0.4.1
