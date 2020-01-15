@@ -443,7 +443,7 @@ for searchQuery in sys.argv[2:]:
 	table = [["Business Name", "URL", "Phone Number", "Person Name", "Person Email", "Unique ID", "Msg Sending Status"]]
 	adUrlCount = len(adUrls)
 	print(adUrlCount)
-
+	
 	# for adIndex in range(len(adUrls)):
 	for adIndex in range(resultsWanted):
 
@@ -453,6 +453,8 @@ for searchQuery in sys.argv[2:]:
 		payloadUrl = payloadUrl.split("?")[0]
 		print(payloadUrl)
 		AD_ID = payloadUrl.split('/')[-1]
+		if AD_ID.startswith("cas"):
+			AD_ID = AD_ID.split("_")[-1]
 
 		msgStatus = False
 		uniqueID = str(uuid.uuid1()).split('-')[0]
